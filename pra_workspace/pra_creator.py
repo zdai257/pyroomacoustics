@@ -9,6 +9,16 @@ from os.path import join
 import librosa
 import random
 import pandas as pd
+import argparse
+import json
+
+
+parser = argparse.ArgumentParser(description='Room Sound Simulator')
+parser.add_argument('--count', type=str, help='sound events per sec', required=True)
+parser.add_argument('--X', type=str, help='Side X length', default=50)
+parser.add_argument('--Y', type=str, help='Side Y length', default=50)
+parser.add_argument('--Z', type=str, help='Side Z length', default=10)
+args = parser.parse_args()
 
 root_dir = '/home/zdai/repos/pyroomacoustics/pra_workspace'
 
@@ -28,38 +38,49 @@ class BirdInstance(object):
 
         self.delay = (t - self.seed['len']) * random.random()
 
-    def to_json(self):
-        pass
+    def to_dict(self):
+        BirdDict = {'BirdName': self.seed['name'],
+                    'location': self.pos_3D.tolist(),
+                    'start_t': self.delay,
+                    'end_t': self.delay + self.seed['len']}
+        return BirdDict
 
 
 class SoundCrowd(object):
-    def __init__(self, seeds: list, count: int, snr: float, output_filename=None,
-                 fs=24000, max_order=3, noise_pos=np.array([1., 1., 1.]),
+    def __init__(self, seeds: list, count: int, room_size: np.array, snr=(100., 2.), output_filename=None,
+                 fs=24000, max_order=3, noise_pos=None, micro_pos=None,
                  temporal_density=None, spectro_density=None):
+        # Random Clip Length
+        self.clip_t = random.randint(5, 10)
+        print("This clip lasts %.3f s" % self.clip_t)
+        self.count = count
+        self.density = float(self.count / self.clip_t)
+        self.room_size = room_size
+        self.snr = snr
         self.seed_sound_info = dict()
         self.class_counter = 0
         self.fs = fs
         self.max_order = max_order
         self.noise_pos = noise_pos
+        if micro_pos is not None:
+            self.micro_pos = micro_pos
+        else:
+            self.micro_pos = np.array([[random.uniform(0, room_size[0])],
+                                       [random.uniform(0, room_size[1])],
+                                       [random.uniform(0, room_size[2])]])
+
         for item in seeds:
             self.get_seed_sound_info(item)
         print(self.seed_sound_info)
 
-        self.clip_t = random.randint(5, 10)
-        print("This clip lasts %.3f s" % self.clip_t)
-
-        self.count = count
-        # TODO: implement random SNR
-        self.snr = snr
-
         if output_filename is not None:
             self.wavfile_savename = output_filename
         else:
-            self.wavfile_savename = "Simulated_count{}.wav".format(self.count)
+            self.wavfile_savename = "ClipLength{}_Count{}.wav".format(self.clip_t, self.count)
 
-        # step1: build up the room
-        self.corners = np.array([[0., 0.], [0., 5.], [7., 5.], [7., 0.]]).T  # [x,y]
-        self.height = 3.
+        # step1: build up the room (assume Rectangular)
+        self.corners = np.array([[0., 0.], [0., room_size[1]], [room_size[0], room_size[1]], [room_size[0], 0.]]).T
+        self.height = room_size[2]
         self.room = pra.Room.from_corners(self.corners,
                                           fs=self.fs,
                                           max_order=self.max_order,
@@ -74,24 +95,25 @@ class SoundCrowd(object):
                                   energy_thres=1e-5)
 
         # step2: add microphone array to the room
-        R = np.array([[0.25], [0.25], [0.3]])
-        self.room.add_microphone(loc=R, fs=self.fs)
+        self.room.add_microphone(loc=self.micro_pos, fs=self.fs)
 
         # step3: add sound source to the room
         # step3.1 Place a source of white noise playing for T s
-        noise_amp = 1000
+        noise_amp = 300
         self.noise_source = noise_amp * np.random.randn(self.fs * self.clip_t)
-        self.room.add_source(self.noise_pos, signal=self.noise_source)
+        if self.noise_pos is not None:
+            self.room.add_source(self.noise_pos, signal=self.noise_source)
+        else:
+            self.room.add_source(room_size / 2., signal=self.noise_source)
 
         # step3.2 Place Random Birds
         self.sound_srcs = []
         max_xy = np.max(self.corners, axis=0)
-        for index in range(count):
+        for index in range(self.count):
             seedname = random.choice(list(self.seed_sound_info.keys()))
             src = BirdInstance(self.seed_sound_info[seedname], xyz=(max_xy[0], max_xy[1], self.height), t=self.clip_t)
-            self.sound_srcs.append(src)
+            self.sound_srcs.append(src.to_dict())
             self.room.add_source(src.pos_3D, signal=src.signal, delay=src.delay)
-
 
     def get_seed_sound_info(self, seed):
         soundname = seed.split('.')[0].split('/')[-1]
@@ -102,13 +124,29 @@ class SoundCrowd(object):
         self.seed_sound_info[soundname]['signal'] = signal
         self.seed_sound_info[soundname]['fs'] = fs
         self.seed_sound_info[soundname]['len'] = len(signal) / fs
+        self.seed_sound_info[soundname]['name'] = soundname
         self.seed_sound_info[soundname]['class_id'] = self.class_counter
 
         self.class_counter += 1
 
+    def to_dict(self, idx=0):
+        SimuInstantce = {'sample_idx': idx,
+                         'sample': {
+                             'room_size': self.room_size.tolist(),
+                             'fs': self.fs,
+                             'max_order': self.max_order,
+                             'microphone_pos': self.micro_pos.tolist(),
+                             'clip_length': self.clip_t,
+                             'count': self.count,
+                             'birds': self.sound_srcs,
+                         }}
+        return SimuInstantce
+
     def simulate(self):
         # compute image sources. At this point, RIRs are simply created
         self.room.image_source_model()
+        # TODO: snr not working
+        #self.room.simulate(snr=random.gauss(self.snr[0], self.snr[1]))
         self.room.simulate()
 
     def generate(self):
@@ -124,10 +162,19 @@ def main():
 
     highfidelity_samplerate = 44100
 
-    sc = SoundCrowd(seeds=wav_lst, count=3, snr=1., fs=highfidelity_samplerate, max_order=3)
+    room_size = np.array([float(args.X), float(args.Y), float(args.Z)], dtype=float)
+
+    sc = SoundCrowd(seeds=wav_lst, room_size=room_size, count=int(args.count),
+                    fs=highfidelity_samplerate, max_order=3)
 
     sc.simulate()
     sc.generate()
+
+    if os.path.exists('annotations.json'):
+        pass
+    else:
+        with open('annotations.json', 'w', encoding='utf-8') as f:
+            json.dump(sc.to_dict(), f, ensure_ascii=False, indent=4)
     print("Simulation Completed!")
 
 
