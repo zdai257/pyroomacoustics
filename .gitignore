@@ -12,4 +12,5 @@ local_examples/
 *.ipynb_checkpoints
 *.wav
 *.csv
+*.json
 
