@@ -132,7 +132,7 @@ class SoundCrowd(object):
         if fs != sr:
             signal, fs = librosa.load(seed, sr=sr)
             signal = (signal * 32767).astype(int)
-            
+
         self.seed_sound_info[soundname] = dict()
         self.seed_sound_info[soundname]['wavfile'] = seed
         self.seed_sound_info[soundname]['signal'] = signal
