@@ -11,6 +11,9 @@ import random
 import pandas as pd
 import argparse
 import json
+import sed_eval
+from sed_eval import sound_event
+import sed_eval.metric as sed
 
 
 parser = argparse.ArgumentParser(description='Room Sound Simulator')
@@ -20,6 +23,8 @@ parser.add_argument('--X', type=str, help='Side X length', default=50)
 parser.add_argument('--Y', type=str, help='Side Y length', default=50)
 parser.add_argument('--Z', type=str, help='Side Z length', default=10)
 parser.add_argument('--rt_order', type=str, help='Max ray tracing order', default=3)
+parser.add_argument('--samples', type=str, help='Number of samples per settings', default=10)
+parser.add_argument('--annfile', type=str, help='Annotation file name', default='annotations.json')
 args = parser.parse_args()
 
 root_dir = '/home/zdai/repos/pyroomacoustics/pra_workspace'
@@ -38,7 +43,9 @@ class BirdInstance(object):
         z = random.uniform(0, xyz[2])
         self.pos_3D = np.array([x, y, z])
 
-        self.delay = (t - self.seed['len']) * random.random()
+        # No need for delay penalty at end of clip
+        #self.delay = (t - self.seed['len']) * random.random()
+        self.delay = float(t) * random.random()
 
     def to_dict(self):
         BirdDict = {'BirdName': self.seed['name'],
@@ -53,12 +60,13 @@ class SoundCrowd(object):
                  fs=22050, max_order=3, noise_pos=None, micro_pos=None,
                  temporal_density=None, spectro_density=None, idx=0):
         # Random Clip Length
-        self.clip_t = random.randint(5, 10)
+        self.clip_t = random.randint(3, 7)
         print("This clip lasts %.3f s" % self.clip_t)
         self.count = count
         self.density = float(self.count / self.clip_t)
         self.room_size = room_size
-        self.snr = snr[0]
+        # Randomize SNR
+        self.snr = random.normalvariate(mu=snr[0], sigma=snr[1])
         # Compute the variance of the microphone noise
         self.sigma2_awgn = 10 ** (-self.snr / 10) * 1
 
@@ -81,7 +89,7 @@ class SoundCrowd(object):
         if output_filename is not None:
             self.wavfile_savename = output_filename
         else:
-            self.wavfile_savename = "No-{}_ClipLength{}_Count{}.wav".format(idx, self.clip_t, self.count)
+            self.wavfile_savename = "No-{}_ClipLength{}_Count{}".format(idx, self.clip_t, self.count)
 
         # step1: build up the room (assume Rectangular)
         self.corners = np.array([[0., 0.], [0., room_size[1]], [room_size[0], room_size[1]], [room_size[0], 0.]]).T
@@ -165,34 +173,50 @@ class SoundCrowd(object):
         self.room.simulate()
 
     def generate(self):
-        self.room.mic_array.to_wav(join(root_dir, 'outputs', self.wavfile_savename),
+        self.room.mic_array.to_wav(join(root_dir, 'outputs', self.wavfile_savename + ".wav"),
                                    norm=False,
                                    bitdepth=np.int16)
+
+    def polyphony(self):
+        pass
 
 
 def main():
     wav_lst = []
     wav_lst.append(join(root_dir, 'junco.wav'))
     wav_lst.append(join(root_dir, 'amre.wav'))
+    wav_lst.append(join(root_dir, 'duck.wav'))
+    wav_lst.append(join(root_dir, 'eagle.wav'))
+    wav_lst.append(join(root_dir, 'japanrobin.wav'))
 
     #sampling_rate = 44100
     sampling_rate = 22050
 
     room_size = np.array([float(args.X), float(args.Y), float(args.Z)], dtype=float)
+    assert isinstance(int(args.X), int)
 
-    num_samples = 3
+    num_samples = int(args.samples)
     anns = {}
+
     for index in range(num_samples):
+        filename = "X-{}_Y-{}_count-{}_index-{}".format(int(args.X), int(args.Y), args.count, index)
+
         sc = SoundCrowd(seeds=wav_lst, room_size=room_size, count=int(args.count), snr=(float(args.snr), 2.),
-                        fs=sampling_rate, max_order=int(args.rt_order), idx=index)
+                        fs=sampling_rate, max_order=int(args.rt_order), idx=index,
+                        output_filename=filename)
         sc.simulate()
         sc.generate()
-        anns[index] = sc.to_dict()
+        anns[filename] = sc.to_dict()
 
-    if os.path.exists(join(root_dir, 'annotations.json')):
-        raise ValueError("File already exists!")
+    if os.path.exists(join(root_dir, args.annfile)):
+        with open(args.annfile) as f:
+            new_anns = json.load(f)
+
+        new_anns.update(anns)
+        with open(args.annfile, 'w', encoding='utf-8') as f:
+            json.dump(new_anns, f, ensure_ascii=False, indent=4)
     else:
-        with open('annotations.json', 'w', encoding='utf-8') as f:
+        with open(args.annfile, 'w', encoding='utf-8') as f:
             json.dump(anns, f, ensure_ascii=False, indent=4)
     print("Simulation Completed!")
 
