@@ -43,7 +43,7 @@ class BirdInstance(object):
         z = random.uniform(0, xyz[2])
         self.pos_3D = np.array([x, y, z])
 
-        # No need for delay penalty at end of clip
+        # No need for delay penalty at end of clip ?!
         #self.delay = (t - self.seed['len']) * random.random()
         self.delay = float(t) * random.random()
 
@@ -173,12 +173,32 @@ class SoundCrowd(object):
         self.room.simulate()
 
     def generate(self):
-        self.room.mic_array.to_wav(join(root_dir, 'outputs', self.wavfile_savename + ".wav"),
-                                   norm=False,
-                                   bitdepth=np.int16)
+        os.makedirs(join(root_dir, 'outputs')) if not os.path.exists(join(root_dir, 'outputs')) else None
+        self.room.mic_array.to_wav_t(join(root_dir, 'outputs', self.wavfile_savename + ".wav"),
+                                     t=self.clip_t,
+                                     norm=False,
+                                     bitdepth=np.int16)
 
     def polyphony(self):
-        pass
+        step = 0.0001
+
+        t = np.arange(0, self.clip_t, step)
+        t_tp = np.zeros(t.shape)
+        t_den = np.zeros(t.shape)
+
+        for idx, x in np.ndenumerate(t):
+            mono_track = 0
+            for instance in self.sound_srcs:
+                if x >= instance['start_t'] and x <= instance['end_t']:
+                    mono_track += 1
+
+            if mono_track >= 2:
+                t_tp[idx] = step
+                t_den[idx] = mono_track * step
+
+        polyphonic_ratio = np.sum(t_tp) / self.clip_t
+        polyphonic_density = np.sum(t_den) / (self.clip_t * self.count)
+        return polyphonic_ratio, polyphonic_density
 
 
 def main():
@@ -207,6 +227,8 @@ def main():
         sc.simulate()
         sc.generate()
         anns[filename] = sc.to_dict()
+
+        print("Polyphonic Ratio/Density are ", sc.polyphony())
 
     if os.path.exists(join(root_dir, args.annfile)):
         with open(args.annfile) as f:
