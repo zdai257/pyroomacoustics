@@ -19,10 +19,10 @@ import sed_eval.metric as sed
 parser = argparse.ArgumentParser(description='Room Sound Simulator')
 parser.add_argument('--count', type=str, help='Sound event count', required=True)
 parser.add_argument('--snr', type=str, help='Signal to Noise Ratio', default=-33)
-parser.add_argument('--X', type=str, help='Side X length', default=50)
-parser.add_argument('--Y', type=str, help='Side Y length', default=50)
-parser.add_argument('--Z', type=str, help='Side Z length', default=10)
-parser.add_argument('--rt_order', type=str, help='Max ray tracing order', default=3)
+parser.add_argument('--X', type=str, help='Side X length', default=100)
+parser.add_argument('--Y', type=str, help='Side Y length', default=100)
+parser.add_argument('--Z', type=str, help='Side Z length', default=100)
+parser.add_argument('--rt_order', type=str, help='Max ray tracing order', default=2)
 parser.add_argument('--samples', type=str, help='Number of samples per settings', default=10)
 parser.add_argument('--annfile', type=str, help='Annotation file name', default='annotations.json')
 args = parser.parse_args()
@@ -44,8 +44,8 @@ class BirdInstance(object):
         self.pos_3D = np.array([x, y, z])
 
         # No need for delay penalty at end of clip ?!
-        #self.delay = (t - self.seed['len']) * random.random()
-        self.delay = float(t) * random.random()
+        self.delay = (t - self.seed['len']) * random.random()
+        #self.delay = float(t) * random.random()
 
     def to_dict(self):
         BirdDict = {'BirdName': self.seed['name'],
@@ -60,7 +60,11 @@ class SoundCrowd(object):
                  fs=22050, max_order=3, noise_pos=None, micro_pos=None,
                  temporal_density=None, spectro_density=None, idx=0):
         # Random Clip Length
-        self.clip_t = random.randint(3, 7)
+        #self.clip_t = random.randint(3, 7)
+        # Choose clip length in list
+        length_choices = [5, 7, 10]
+        self.clip_t = random.choice(length_choices)
+
         print("This clip lasts %.3f s" % self.clip_t)
         self.count = count
         self.density = float(self.count / self.clip_t)
@@ -211,13 +215,16 @@ class SoundCrowd(object):
 def main():
     wav_lst = []
     wav_lst.append(join(root_dir, 'junco.wav'))
-    wav_lst.append(join(root_dir, 'amre.wav'))
+    #wav_lst.append(join(root_dir, 'amre.wav'))
     wav_lst.append(join(root_dir, 'duck.wav'))
-    wav_lst.append(join(root_dir, 'eagle.wav'))
+    #wav_lst.append(join(root_dir, 'eagle.wav'))
     wav_lst.append(join(root_dir, 'japanrobin.wav'))
+    wav_lst.append(join(root_dir, 'rooster.wav'))
+    #wav_lst.append(join(root_dir, 'crow.wav'))
+    wav_lst.append(join(root_dir, 'LoonA.wav'))
 
     #sampling_rate = 44100
-    sampling_rate = 22050
+    sampling_rate = 24000
 
     room_size = np.array([float(args.X), float(args.Y), float(args.Z)], dtype=float)
     assert isinstance(int(args.X), int)
@@ -230,7 +237,9 @@ def main():
 
         sc = SoundCrowd(seeds=wav_lst, room_size=room_size, count=int(args.count), snr=(float(args.snr), 2.),
                         fs=sampling_rate, max_order=int(args.rt_order), idx=index,
-                        output_filename=filename)
+                        output_filename=filename, micro_pos=np.array([room_size[0]/2,
+                                                                      room_size[1]/2,
+                                                                      1.]))
         sc.simulate()
         sc.generate()
         sc.polyphony()
