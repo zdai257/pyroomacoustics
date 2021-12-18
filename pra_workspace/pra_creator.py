@@ -64,6 +64,9 @@ class SoundCrowd(object):
         print("This clip lasts %.3f s" % self.clip_t)
         self.count = count
         self.density = float(self.count / self.clip_t)
+        self.PR = -1.
+        self.PD = -1.
+
         self.room_size = room_size
         # Randomize SNR
         self.snr = random.normalvariate(mu=snr[0], sigma=snr[1])
@@ -162,6 +165,8 @@ class SoundCrowd(object):
                              'clip_length': self.clip_t,
                              'count': self.count,
                              'birds': self.sound_srcs,
+                             'PolyphonicRatio': self.PR,
+                             'PolyphonicDensity': self.PD,
                 }
         return item
 
@@ -198,7 +203,9 @@ class SoundCrowd(object):
 
         polyphonic_ratio = np.sum(t_tp) / self.clip_t
         polyphonic_density = np.sum(t_den) / (self.clip_t * self.count)
-        return polyphonic_ratio, polyphonic_density
+
+        self.PR = polyphonic_ratio
+        self.PD = polyphonic_density
 
 
 def main():
@@ -226,9 +233,9 @@ def main():
                         output_filename=filename)
         sc.simulate()
         sc.generate()
-        anns[filename] = sc.to_dict()
+        sc.polyphony()
 
-        print("Polyphonic Ratio/Density are ", sc.polyphony())
+        anns[filename] = sc.to_dict()
 
     if os.path.exists(join(root_dir, args.annfile)):
         with open(args.annfile) as f:
