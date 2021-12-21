@@ -27,8 +27,8 @@ parser.add_argument('--samples', type=str, help='Number of samples per settings'
 parser.add_argument('--annfile', type=str, help='Annotation file name', default='annotations.json')
 args = parser.parse_args()
 
-root_dir = '/home/zdai/repos/pyroomacoustics/pra_workspace'
-
+#root_dir = '/home/zdai/repos/pyroomacoustics/pra_workspace'
+root_dir = '/Users/zhuangzhuangdai/repos/pyroomacoustics/pra_workspace'
 
 class BirdInstance(object):
     def __init__(self, seed, xyz, t, snr=1.):
@@ -182,11 +182,19 @@ class SoundCrowd(object):
         self.room.simulate()
 
     def generate(self):
+
         os.makedirs(join(root_dir, 'outputs')) if not os.path.exists(join(root_dir, 'outputs')) else None
+        # TODO: inherit from beamforming.py rather than manipulate source code
         self.room.mic_array.to_wav_t(join(root_dir, 'outputs', self.wavfile_savename + ".wav"),
                                      t=self.clip_t,
                                      norm=False,
                                      bitdepth=np.int16)
+        '''
+        self.room.mic_array.to_wav(join(root_dir, 'outputs', self.wavfile_savename + ".wav"),
+                                     #t=self.clip_t,
+                                     norm=False,
+                                     bitdepth=np.int16)
+        '''
 
     def polyphony(self):
         step = 0.0001
@@ -247,14 +255,14 @@ def main():
         anns[filename] = sc.to_dict()
 
     if os.path.exists(join(root_dir, args.annfile)):
-        with open(args.annfile) as f:
+        with open(join(root_dir, args.annfile)) as f:
             new_anns = json.load(f)
 
         new_anns.update(anns)
-        with open(args.annfile, 'w', encoding='utf-8') as f:
+        with open(join(root_dir, args.annfile), 'w', encoding='utf-8') as f:
             json.dump(new_anns, f, ensure_ascii=False, indent=4)
     else:
-        with open(args.annfile, 'w', encoding='utf-8') as f:
+        with open(join(root_dir, args.annfile), 'w', encoding='utf-8') as f:
             json.dump(anns, f, ensure_ascii=False, indent=4)
     print("Simulation Completed!")
 
