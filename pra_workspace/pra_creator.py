@@ -27,8 +27,8 @@ parser.add_argument('--samples', type=str, help='Number of samples per settings'
 parser.add_argument('--annfile', type=str, help='Annotation file name', default='annotations.json')
 args = parser.parse_args()
 
-#root_dir = '/home/zdai/repos/pyroomacoustics/pra_workspace'
-root_dir = '/Users/zhuangzhuangdai/repos/pyroomacoustics/pra_workspace'
+root_dir = '/home/zdai/repos/pyroomacoustics/pra_workspace'
+#root_dir = '/Users/zhuangzhuangdai/repos/pyroomacoustics/pra_workspace'
 
 class BirdInstance(object):
     def __init__(self, seed, xyz, t, snr=1.):
@@ -62,7 +62,7 @@ class SoundCrowd(object):
         # Random Clip Length
         #self.clip_t = random.randint(3, 7)
         # Choose clip length in list
-        length_choices = [5, 7, 10]
+        length_choices = [5]
         self.clip_t = random.choice(length_choices)
 
         print("This clip lasts %.3f s" % self.clip_t)
@@ -72,6 +72,7 @@ class SoundCrowd(object):
         self.PD = -1.
 
         self.room_size = room_size
+        self.wall_absorption = 0.8
         # Randomize SNR
         self.snr = random.normalvariate(mu=snr[0], sigma=snr[1])
         # Compute the variance of the microphone noise
@@ -104,11 +105,11 @@ class SoundCrowd(object):
         self.room = pra.Room.from_corners(self.corners,
                                           fs=self.fs,
                                           max_order=self.max_order,
-                                          materials=pra.Material(0.2, 0.15),
+                                          materials=pra.Material(self.wall_absorption, 0.15),
                                           ray_tracing=True,
                                           air_absorption=True,
                                           sigma2_awgn=self.sigma2_awgn)
-        self.room.extrude(self.height, materials=pra.Material(0.2, 0.15))
+        self.room.extrude(self.height, materials=pra.Material(self.wall_absorption, 0.15))
 
         # Set the ray tracing parameters
         self.room.set_ray_tracing(receiver_radius=0.5,
