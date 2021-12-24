@@ -23,6 +23,7 @@ parser.add_argument('--X', type=str, help='Side X length', default=100)
 parser.add_argument('--Y', type=str, help='Side Y length', default=100)
 parser.add_argument('--Z', type=str, help='Side Z length', default=100)
 parser.add_argument('--rt_order', type=str, help='Max ray tracing order', default=2)
+parser.add_argument('--absorb', type=str, help='Wall absorption rate', default=0.2)
 parser.add_argument('--samples', type=str, help='Number of samples per settings', default=10)
 parser.add_argument('--annfile', type=str, help='Annotation file name', default='annotations.json')
 args = parser.parse_args()
@@ -57,7 +58,7 @@ class BirdInstance(object):
 
 class SoundCrowd(object):
     def __init__(self, seeds: list, count: int, room_size: np.array, snr=(-33., 2.), output_filename=None,
-                 fs=22050, max_order=3, noise_pos=None, micro_pos=None,
+                 fs=22050, max_order=3, absorb=0.2, noise_pos=None, micro_pos=None,
                  temporal_density=None, spectro_density=None, idx=0):
         # Random Clip Length
         #self.clip_t = random.randint(3, 7)
@@ -72,7 +73,7 @@ class SoundCrowd(object):
         self.PD = -1.
 
         self.room_size = room_size
-        self.wall_absorption = 0.8
+        self.wall_absorption = absorb
         # Randomize SNR
         self.snr = random.normalvariate(mu=snr[0], sigma=snr[1])
         # Compute the variance of the microphone noise
@@ -226,11 +227,11 @@ def main():
     wav_lst.append(join(root_dir, 'junco.wav'))
     #wav_lst.append(join(root_dir, 'amre.wav'))
     wav_lst.append(join(root_dir, 'duck.wav'))
-    #wav_lst.append(join(root_dir, 'eagle.wav'))
+    wav_lst.append(join(root_dir, 'eagle.wav'))
     wav_lst.append(join(root_dir, 'japanrobin.wav'))
     wav_lst.append(join(root_dir, 'rooster.wav'))
     #wav_lst.append(join(root_dir, 'crow.wav'))
-    wav_lst.append(join(root_dir, 'LoonA.wav'))
+    #wav_lst.append(join(root_dir, 'LoonA.wav'))
 
     #sampling_rate = 44100
     sampling_rate = 24000
@@ -242,10 +243,10 @@ def main():
     anns = {}
 
     for index in range(num_samples):
-        filename = "X-{}_Y-{}_count-{}_index-{}".format(int(args.X), int(args.Y), args.count, index)
+        filename = "X-{}_Y-{}_count-{}_snr-{}_index-{}".format(int(args.X), int(args.Y), args.count, abs(int(args.snr)), index)
 
         sc = SoundCrowd(seeds=wav_lst, room_size=room_size, count=int(args.count), snr=(float(args.snr), 2.),
-                        fs=sampling_rate, max_order=int(args.rt_order), idx=index,
+                        fs=sampling_rate, max_order=int(args.rt_order), absorb=float(args.absorb), idx=index,
                         output_filename=filename, micro_pos=np.array([room_size[0]/2,
                                                                       room_size[1]/2,
                                                                       1.]))
