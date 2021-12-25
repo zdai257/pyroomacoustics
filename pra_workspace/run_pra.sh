@@ -10,7 +10,7 @@ for ((i=1;i<=MAXCOUNT;i++)); do
     for l in ${SIDE[*]}; do
         echo $l
         for s in ${SNR[*]}; do
-            python3 /home/zdai/repos/pyroomacoustics/pra_workspace/pra_creator.py --count $i --X $l --Y $l --Z $l --samples 400 --snr $s --rt_order 2 --absorb 0.8
+            python3 /home/zdai/repos/pyroomacoustics/pra_workspace/pra_creator.py --count $i --X $l --Y $l --Z $l --samples 2000 --snr $s --rt_order 2 --absorb 0.8
         done
     done
 done

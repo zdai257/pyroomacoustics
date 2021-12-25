@@ -11,6 +11,7 @@ import random
 import pandas as pd
 import argparse
 import json
+from math import floor
 import sed_eval
 from sed_eval import sound_event
 import sed_eval.metric as sed
@@ -23,7 +24,7 @@ parser.add_argument('--X', type=str, help='Side X length', default=100)
 parser.add_argument('--Y', type=str, help='Side Y length', default=100)
 parser.add_argument('--Z', type=str, help='Side Z length', default=100)
 parser.add_argument('--rt_order', type=str, help='Max ray tracing order', default=2)
-parser.add_argument('--absorb', type=str, help='Wall absorption rate', default=0.2)
+parser.add_argument('--absorb', type=str, help='Wall absorption rate', default=0.8)
 parser.add_argument('--samples', type=str, help='Number of samples per settings', default=10)
 parser.add_argument('--annfile', type=str, help='Annotation file name', default='annotations.json')
 args = parser.parse_args()
@@ -32,8 +33,9 @@ root_dir = '/home/zdai/repos/pyroomacoustics/pra_workspace'
 #root_dir = '/Users/zhuangzhuangdai/repos/pyroomacoustics/pra_workspace'
 
 class BirdInstance(object):
-    def __init__(self, seed, xyz, t, snr=1.):
+    def __init__(self, seed, xyz, origin, t, snr=1.):
         self.seed = seed
+        self.origin = origin
 
         if snr != 1.:
             pass
@@ -44,9 +46,25 @@ class BirdInstance(object):
         z = random.uniform(0, xyz[2])
         self.pos_3D = np.array([x, y, z])
 
+        if self.seed['name'] == 'eagle' or self.seed['name'] == 'rooster':
+            while np.linalg.norm(self.pos_3D - self.origin) < 40:
+                x = random.uniform(0, xyz[0])
+                y = random.uniform(0, xyz[1])
+                z = random.uniform(0, xyz[2])
+                self.pos_3D = np.array([x, y, z])
+        else:
+            while np.linalg.norm(self.pos_3D - self.origin) < 5 or np.linalg.norm(self.pos_3D - self.origin) > 60:
+                x = random.uniform(0, xyz[0])
+                y = random.uniform(0, xyz[1])
+                z = random.uniform(0, xyz[2])
+                self.pos_3D = np.array([x, y, z])
+
         # No need for delay penalty at end of clip ?!
         self.delay = (t - self.seed['len']) * random.random()
         #self.delay = float(t) * random.random()
+
+        # Round delay to discrete 100ms
+        self.delay = round(self.delay, 1)
 
     def to_dict(self):
         BirdDict = {'BirdName': self.seed['name'],
@@ -137,7 +155,8 @@ class SoundCrowd(object):
         for index in range(self.count):
             seedname = random.choice(list(self.seed_sound_info.keys()))
             src = BirdInstance(self.seed_sound_info[seedname],
-                               xyz=(self.room_size[0], self.room_size[1], self.height), t=self.clip_t)
+                               xyz=(self.room_size[0], self.room_size[1], self.height),
+                               origin=self.micro_pos, t=self.clip_t)
             self.sound_srcs.append(src.to_dict())
             self.room.add_source(src.pos_3D, signal=src.signal, delay=src.delay)
 
@@ -150,11 +169,15 @@ class SoundCrowd(object):
             signal, fs = librosa.load(seed, sr=sr)
             signal = (signal * 32767).astype(int)
 
+        # Clip the seed length to 100ms
+        floor_length = floor(len(signal) / fs * 10) / 10
+        signal = signal[:int(floor_length * fs)]
+
         self.seed_sound_info[soundname] = dict()
         self.seed_sound_info[soundname]['wavfile'] = seed
         self.seed_sound_info[soundname]['signal'] = signal
         self.seed_sound_info[soundname]['fs'] = fs
-        self.seed_sound_info[soundname]['len'] = len(signal) / fs
+        self.seed_sound_info[soundname]['len'] = floor_length
         self.seed_sound_info[soundname]['name'] = soundname
         self.seed_sound_info[soundname]['class_id'] = self.class_counter
 
@@ -167,6 +190,7 @@ class SoundCrowd(object):
                              'snr': self.snr,
                              'sigma2_awgn': self.sigma2_awgn,
                              'max_order': self.max_order,
+                             'wall_absorption': self.wall_absorption,
                              'microphone_pos': self.micro_pos.tolist(),
                              'clip_length': self.clip_t,
                              'count': self.count,
@@ -225,10 +249,10 @@ class SoundCrowd(object):
 def main():
     wav_lst = []
     wav_lst.append(join(root_dir, 'junco.wav'))
-    #wav_lst.append(join(root_dir, 'amre.wav'))
-    wav_lst.append(join(root_dir, 'duck.wav'))
+    wav_lst.append(join(root_dir, 'amre.wav'))
+    #wav_lst.append(join(root_dir, 'duck.wav'))
     wav_lst.append(join(root_dir, 'eagle.wav'))
-    wav_lst.append(join(root_dir, 'japanrobin.wav'))
+    #wav_lst.append(join(root_dir, 'japanrobin.wav'))
     wav_lst.append(join(root_dir, 'rooster.wav'))
     #wav_lst.append(join(root_dir, 'crow.wav'))
     #wav_lst.append(join(root_dir, 'LoonA.wav'))
