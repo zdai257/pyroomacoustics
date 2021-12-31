@@ -11,7 +11,7 @@ import random
 import pandas as pd
 import argparse
 import json
-from math import floor
+from math import floor, e
 import sed_eval
 from sed_eval import sound_event
 import sed_eval.metric as sed
@@ -19,7 +19,7 @@ import sed_eval.metric as sed
 
 parser = argparse.ArgumentParser(description='Room Sound Simulator')
 parser.add_argument('--count', type=str, help='Sound event count', required=True)
-parser.add_argument('--snr', type=str, help='Signal to Noise Ratio', default=-33)
+parser.add_argument('--snr', type=str, help='Signal to Noise Ratio', default=-20)
 parser.add_argument('--X', type=str, help='Side X length', default=100)
 parser.add_argument('--Y', type=str, help='Side Y length', default=100)
 parser.add_argument('--Z', type=str, help='Side Z length', default=100)
@@ -89,6 +89,8 @@ class SoundCrowd(object):
         self.density = float(self.count / self.clip_t)
         self.PR = -1.
         self.PD = -1.
+        self.PA = -1.
+        self.PL = -1.
 
         self.room_size = room_size
         self.wall_absorption = absorb
@@ -197,6 +199,8 @@ class SoundCrowd(object):
                              'birds': self.sound_srcs,
                              'PolyphonicRatio': self.PR,
                              'PolyphonicDensity': self.PD,
+                             'PolyphonyLevel': self.PL,
+                             'PolyphonicArea': self.PA,
                 }
         return item
 
@@ -228,6 +232,9 @@ class SoundCrowd(object):
         t = np.arange(0, self.clip_t, step)
         t_tp = np.zeros(t.shape)
         t_den = np.zeros(t.shape)
+        t_area = np.zeros(t.shape)
+
+        max_track = 0
 
         for idx, x in np.ndenumerate(t):
             mono_track = 0
@@ -237,11 +244,18 @@ class SoundCrowd(object):
 
             if mono_track >= 2:
                 t_tp[idx] = step
-                t_den[idx] = mono_track * step
+                t_den[idx] = e**mono_track * step
+                t_area[idx] = mono_track * step
+
+            max_track = mono_track if mono_track > max_track else max_track
 
         polyphonic_ratio = np.sum(t_tp) / self.clip_t
-        polyphonic_density = np.sum(t_den) / (self.clip_t * self.count)
+        polyphonic_density = np.sum(t_den) / self.clip_t
+        # Specify Max number of "wall"
+        polyphonic_area = np.sum(t_area) / (self.clip_t * 5)
 
+        self.PL = max_track
+        self.PA = polyphonic_area
         self.PR = polyphonic_ratio
         self.PD = polyphonic_density
 
