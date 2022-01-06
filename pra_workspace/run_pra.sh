@@ -4,7 +4,7 @@ SIDE=("100")
 # Number of count in [1, MAXCOUNT]
 SNR=("-20"  "-33")
 # Number of count in [1, MAXCOUNT]
-MAXCOUNT=5
+MAXCOUNT=20
 for ((i=1;i<=MAXCOUNT;i++)); do
     echo $i
     for l in ${SIDE[*]}; do

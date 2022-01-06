@@ -262,10 +262,10 @@ class SoundCrowd(object):
 
 def main():
     wav_lst = []
-    wav_lst.append(join(root_dir, 'junco.wav'))
-    wav_lst.append(join(root_dir, 'amre.wav'))
+    #wav_lst.append(join(root_dir, 'junco.wav'))
+    #wav_lst.append(join(root_dir, 'amre.wav'))
     #wav_lst.append(join(root_dir, 'duck.wav'))
-    wav_lst.append(join(root_dir, 'eagle.wav'))
+    #wav_lst.append(join(root_dir, 'eagle.wav'))
     #wav_lst.append(join(root_dir, 'japanrobin.wav'))
     wav_lst.append(join(root_dir, 'rooster.wav'))
     #wav_lst.append(join(root_dir, 'crow.wav'))
